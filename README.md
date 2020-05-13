@@ -88,7 +88,7 @@ PW : 6400
 
 
 ## 업무 프로세스 흐름도
-![image](https://user-images.githubusercontent.com/28293389/81764601-e4dc2400-950c-11ea-9898-050e8ff02a71.png)
+![image](https://user-images.githubusercontent.com/28293389/81843985-607bb680-9589-11ea-890d-fd8ecc273edc.png)
 
 
 ## 헥사고날 아키텍처 다이어그램 도출
@@ -100,14 +100,25 @@ PW : 6400
 분석/설계 단계에서 도출된 헥사고날 아키텍처에 따라, 각 BC별로 대변되는 마이크로 서비스들을 스프링부트와 파이선으로 구현하였다. 구현한 각 서비스를 로컬에서 실행하는 방법은 아래와 같다 (각자의 포트넘버는 8081 ~ 808n 이다)
 
 ```
+# 8081
 cd customer
 mvn spring-boot:run
 
+# 8084
 cd delivery
 mvn spring-boot:run 
 
+# 8088
 cd gateway
 mvn spring-boot:run  
+
+# 8085
+cd account
+mvn spring-boot:run  
+
+# 8086
+cd headquaters
+python command-handler.py
 ```
 
 ## DDD 의 적용
@@ -129,7 +140,9 @@ public class Delivery {
     private Long orderId;
     private String product;
     private Integer qty;
+    private Integer price;
     private String status;
+
 
     public Long getOrderId() {
         return orderId;
@@ -159,6 +172,14 @@ public class Delivery {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Integer getPrice() {
+        return price;
+    }
+
+    public void setPrice(Integer price) {
+        this.price = price;
     }
 
 }
