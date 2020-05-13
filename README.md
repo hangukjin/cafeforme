@@ -1,21 +1,16 @@
-
-readiness 빼고
-gateway 수정
-
 ID : 5team@gkn2019hotmail.onmicrosoft.com  
 PW : 6400
 
 ![image](https://user-images.githubusercontent.com/28293389/81536861-34084480-93a7-11ea-866f-c09e24ef9412.png)
 
-# 5조 - 카페포미
-        지윤진(리더), 한국진, 최영준, 이교광
+# 개인 과제 : 한국진 - 카페포미(5조)
 
 - 체크포인트 : https://workflowy.com/s/assessment-check-po/T5YrzcMewfo4J6LW
 
 
 # Table of contents
 
-- [5조 - 카페포미](#---)
+- [카페포미](#---)
   - [조직](#조직)
   - [서비스 시나리오](#서비스-시나리오)
   - [분석/설계](#분석설계)
@@ -37,47 +32,33 @@ PW : 6400
   - 구현
   - 운영과 Retirement
 
-# 조직
-- 고객 : 고객 주문 오류를 최소화 한다. ( Core )
-- 매장 : 접수 된 주문에 대해 오류를 최소화 한다. ( Supporting )
-- 고객관리 : 주문 상태에 대해 고객에게 정확한 알람을 제공한다. ( 외주 Supporting )
+# 새로운 조직 : 경영 관리
+- 경영 관리 KPI : 매출액 집계 및 통계 데이터 활용
 
-# 서비스 시나리오
-
-- 예시) 스타벅스 Siren Order
-
+# 추가 서비스 시나리오
 - [기능적 요구사항]
-1. 고객이 온라인으로 주문 내역을 만든다.
-1. 고객이 주문 내역으로 결제한다.
-1. 주문 내역이 결제 되면 해당 내역을 매장에서 접수하거나 거절한다.
-    1. 매장에서 접수하면 커피를 제작하고 고객이 주문을 취소할 수 없다.
-    1. 매장에서 거절하면 주문 내역이 취소되고 결제가 환불 된다.
-1. 고객이 주문 내역을 취소를 요청할 수 있다.
-1. 매장에서 주문 내역 취소 요청을 받으면 취소가 가능하다면 취소한다.
-1. 주문 내역이 취소되면 결제가 환불 된다.
-1. 주문 진행 상태가 바뀔 때 마다 SMS로 알림을 보낸다.
+1. 고객이 주문한 상품과 가격을 수집한다.
+1. 주문 관련 통계를 산출한다.  
+    - 모든 주문 금액의 합계
+    - 주문 당 금액의 평균
+    - 주문 당 음료 갯수의 평균
+1. 매출액 합계를 본사 시스템으로 전송할 수 있다.
 
 - [비기능적 요구사항]
 1. 트랜잭션
-    1. 주문시 결제가 성립되어야 한다.  Sync 호출 
+    - 본사 시스템(외부 API)은 Req/Res로 연결 된다.  Sync 호출 
 1. 장애격리
-    1. 매장 서비스가 Down 되어도 주문/취소는 가능해야 한다.  Async (event-driven), Eventual Consistency
+    - 해당 서비스가 작동하지 않아도 기존 시스템에 영향을 주지 않으며 재작동시 기존 주문을 참고하여 집계 한다.  Async (event-driven), Eventual Consistency
 1. 성능
-    1. 고객이 주문 진행 상태를 수시로 조회할 수 있어야 한다.  CQRS
-    1. 고객은 주문 진행 상태를 SMS로 확인할 수 있어야 한다.  Event driven
-
-
-
-
+    - 매출액 합계는 수시로 조회가 가능해야 한다.  CQRS
 
 # 분석/설계
 
-
-## AS-IS 조직 (Horizontally-Aligned)
-  ![image](https://user-images.githubusercontent.com/487999/79684144-2a893200-826a-11ea-9a01-79927d3a0107.png)
-
-## TO-BE 조직 (Vertically-Aligned)
+## 기존 조직
   ![image](https://user-images.githubusercontent.com/487999/79684159-3543c700-826a-11ea-8d5f-a3fc0c4cad87.png)
+
+## 신규 조직 추가 (경영 관리팀)
+  ![image](https://user-images.githubusercontent.com/28293389/81789840-80868800-953f-11ea-9be8-223d8ea1e08c.png)
 
 
 ## Event Storming 결과
