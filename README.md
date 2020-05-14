@@ -161,7 +161,7 @@ public class Accounting {
     }
 
 ```
-- Entity Pattern 과 Repository Pattern 을 적용하여 JPA 를 통하여 다양한 데이터소스 유형 (RDB or NoSQL) 에 대한 별도의 처리가 없도록 데이터 접근 어댑터를 자동 생성하기 위하여 Spring Data REST 의 PagingAndSortingRepository 를 적용하였다
+- Entity Pattern 과 Repository Pattern 을 적용하여 JPA 를 통하여 다양한 데이터소스 유형 (RDB or NoSQL) 에 대한 별도의 처리가 없도록 데이터 접근 어댑터를 자동 생성하기 위하여 Spring Data REST 의 CrudRepository 를 적용하기로 정하였으며 서비스 특성 상 Sort 된 데이터를 조회하는 일이 빈번하여 PagingAndSortingRepository 를 적용하였다.
 ```
 package local;
 
@@ -170,48 +170,112 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 public interface AccountingRepository extends PagingAndSortingRepository<Accounting, String>{
 }
 ```
-- 적용 후 REST API 의 테스트
+## 적용 후 REST API 의 테스트
+
+### Customer 서비스의 주문 처리
+```bash
+http POST gateway:8080/orders product="IceAmericano" qty=1 price=2000
 ```
-# Customer 서비스의 주문 처리
-http POST customer:8080/orders product="IceAmericano" qty=1 price=2000
+```
+{
+    "_links": {
+        "order": {
+            "href": "http://Customer:8080/orders/1"
+        },
+        "self": {
+            "href": "http://Customer:8080/orders/1"
+        }
+    },
+    "cannotOrderCanceled": false,
+    "price": 2000,
+    "product": "IceAmericano",
+    "qty": 1,
+    "status": null
+}
+```
 
-# Delivery 서비스의 승인/거절 처리
-# 주문 승인
-http PUT delivery:8080/deliveries/1 status="receive" product="IceAmericano" qty=1 price=2000
-# 주문 거절
-http PUT delivery:8080/deliveries/1 status="reject" product="IceAmericano" qty=1 price=2000
+### Delivery 서비스의 승인 처리
+```bash
+http PUT gateway:8080/deliveries/1 status="receive" product="IceAmericano" qty=1 price=2000
+```
+```
+{
+    "_links": {
+        "delivery": {
+            "href": "http://Delivery:8080/deliveries/1"
+        },
+        "self": {
+            "href": "http://Delivery:8080/deliveries/1"
+        }
+    },
+    "price": 2000,
+    "product": "IceAmericano",
+    "qty": 1,
+    "status": "receive"
+}
+```
 
-# 주문 상태 확인 및 View
-http customer:8080/orders/1
-http customer:8080/orderStatuses/1
+### Account 상태 확인 및 View
+```bash
+http gateway:8080/accountings
+```
+```
+"accountings": [
+        {
+            "_links": {
+                "accounting": {
+                    "href": "http://account:8080/accountings/20200514"
+                },
+                "self": {
+                    "href": "http://account:8080/accountings/20200514"
+                }
+            },
+            "orderCount": 1.0,
+            "salesQty": 1.0,
+            "salesSum": 2000.0
+        }
+    ]
+```
+```bash
+http gateway:8080/accountingStatisticses
+```
+```
+"accountingStatisticses": [
+        {
+            "_links": {
+                "accountingStatistics": {
+                    "href": "http://account:8080/accountingStatisticses/20200514"
+                },
+                "self": {
+                    "href": "http://account:8080/accountingStatisticses/20200514"
+                }
+            },
+            "orderCount": 1.0,
+            "salesQty": 1.0,
+            "salesSum": 2000.0
+        }
+    ]
 ```
 
 ## 동기식 호출 과 Fallback 처리
 
-주문이 들어오고 결제(외부 API 호출) 처리가 동기식으로 진행되어야 하는 것을 반영하였으며 실제 결제 API를 구현/연동하기에는 무리가 있어 아래와 같이 대체하였다.
+- 본사 시스템(Headquarters)은 외부 시스템으로 가정하였으므로 매출액을 전송할 때 REST POST 방식으로 전송하였다.
 
-- 주문을 받은 직후(@PostPersist) 결제를 요청하도록 처리
-```
-# (Customer) Order.java
+```java
+# (account) Accounting.java
 
 @PostPersist
-public void eventPublish() throws JsonProcessingException {
-    OrderSelected orderSelected = new OrderSelected();
-    BeanUtils.copyProperties(this, orderSelected);
-    orderSelected.publish();
+@PostUpdate
+public void onPrePersist(){
+    SalesTransferred salesTransferred = new SalesTransferred();
+    BeanUtils.copyProperties(this, salesTransferred);
+    salesTransferred.setCafeId(92);
 
-    // 결제 시작
-    if (Math.random() > 0.5){
-        // 결제 성공
-        PaymentCompleted paymentCompleted = new PaymentCompleted();
-        BeanUtils.copyProperties(this, paymentCompleted);
-        paymentCompleted.publish();
+    this.salesTransfer(salesTransferred);
+}
 
-    } else {
-        // 결제 실패
-        orderSelected.setPaymentFail(true);
-        orderSelected.publish();
-    }
+@RequestMapping(method= RequestMethod.POST, path="/headquarters")
+public void salesTransfer(@RequestBody SalesTransferred salesTransferred){
 }
 ```
 
