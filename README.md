@@ -271,11 +271,18 @@ public void onPrePersist(){
     BeanUtils.copyProperties(this, salesTransferred);
     salesTransferred.setCafeId(92);
 
-    this.salesTransfer(salesTransferred);
+    headquarterSend headquarterSend = Application.applicationContext.getBean(headquarterSend.class);
+    headquarterSend.headquarter2Send(salesTransferred);
 }
 
-@RequestMapping(method= RequestMethod.POST, path="/headquarters")
-public void salesTransfer(@RequestBody SalesTransferred salesTransferred){
+# (account) headquarterSend.java
+@Service
+@FeignClient(name ="headquarters", url="localhost:8086")
+public interface headquarterSend {
+
+    @RequestMapping(method = RequestMethod.POST, value = "/headquaters", consumes = "application/json")
+    void headquarter2Send(@RequestBody SalesTransferred salesTransferred);
+
 }
 ```
 
@@ -340,7 +347,7 @@ cd account
 mvn spring-boot:run
 
 #상점에서 주문 확인
-http localhost:8086/accounting
+http localhost:8085/accounting
 ```
 
 
