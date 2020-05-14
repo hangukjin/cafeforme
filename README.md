@@ -33,7 +33,7 @@ PW : 6400
   - 운영과 Retirement
 
 # 새로운 조직 : 경영 관리
-- 경영 관리 KPI : 매출액 집계 및 통계 데이터 활용
+- 경영 관리 KPI : 매출액 집계 및 보고
 
 # 추가 서비스 시나리오
 - [기능적 요구사항]
@@ -93,7 +93,7 @@ PW : 6400
 
 ## 헥사고날 아키텍처 다이어그램 도출
     
-![image](https://user-images.githubusercontent.com/28293389/81763871-3683af00-950b-11ea-96af-5ac25a5631a4.png)
+![image](https://user-images.githubusercontent.com/28293389/81883964-917fd980-95d1-11ea-9b7e-60e2cf5fc82b.png)
 
 # 구현:
 
@@ -126,73 +126,48 @@ python command-handler.py
 - 각 서비스내에 도출된 핵심 Aggregate Root 객체를 Entity 로 선언하였다: (예시는 Delivery 마이크로 서비스). 이때 가능한 현업에서 사용하는 언어 (유비쿼터스 랭귀지)를 그대로 사용하려고 노력했다.
 
 ```
-package local;
-
-import javax.persistence.*;
-import org.springframework.beans.BeanUtils;
-import java.util.List;
-
 @Entity
-@Table(name="Delivery_table")
-public class Delivery {
+@Table(name="Accounting_table")
+public class Accounting {
 
     @Id
-    private Long orderId;
-    private String product;
-    private Integer qty;
-    private Integer price;
-    private String status;
+    private String yearmonth;
+    private Double salesSum;
+    private Double salesQty;
+    private Double orderCount;
 
-
-    public Long getOrderId() {
-        return orderId;
+        public String getYearmonth() {
+        return yearmonth;
     }
 
-    public void setOrderId(Long orderId) {
-        this.orderId = orderId;
-    }
-    public String getProduct() {
-        return product;
+    public void setYearmonth(String yearmonth) {
+        this.yearmonth = yearmonth;
     }
 
-    public void setProduct(String product) {
-        this.product = product;
-    }
-    public Integer getQty() {
-        return qty;
+    public Double getSalesSum() {
+        return salesSum;
     }
 
-    public void setQty(Integer qty) {
-        this.qty = qty;
+    .
+    .
+    .
+
+    public Double getOrderCount() {
+        return orderCount;
     }
 
-    public String getStatus() {
-        return status;
+    public void setOrderCount(Double orderCount) {
+        this.orderCount = orderCount;
     }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Integer getPrice() {
-        return price;
-    }
-
-    public void setPrice(Integer price) {
-        this.price = price;
-    }
-
-}
-
 
 ```
-- Entity Pattern 과 Repository Pattern 을 적용하여 JPA 를 통하여 다양한 데이터소스 유형 (RDB or NoSQL) 에 대한 별도의 처리가 없도록 데이터 접근 어댑터를 자동 생성하기 위하여 Spring Data REST 의 RestRepository 를 적용하였다
+- Entity Pattern 과 Repository Pattern 을 적용하여 JPA 를 통하여 다양한 데이터소스 유형 (RDB or NoSQL) 에 대한 별도의 처리가 없도록 데이터 접근 어댑터를 자동 생성하기 위하여 Spring Data REST 의 PagingAndSortingRepository 를 적용하였다
 ```
 package local;
 
 import org.springframework.data.repository.PagingAndSortingRepository;
 
-public interface DeliveryRepository extends PagingAndSortingRepository<Delivery, Long>{
+public interface AccountingRepository extends PagingAndSortingRepository<Accounting, String>{
 }
 ```
 - 적용 후 REST API 의 테스트
