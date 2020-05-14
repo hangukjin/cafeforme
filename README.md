@@ -37,7 +37,7 @@ PW : 6400
 
 # 추가 서비스 시나리오
 - [기능적 요구사항]
-1. Delivery에서 수락 되어 제작 된 상품과 가격을 수집한다.
+1. Delivery에서 수락하여 매출에 반영되는 상품의 수와 가격을 수집한다.
 1. 매출액 합계를 본사 시스템으로 전송할 수 있다.
 
 - [비기능적 요구사항]
@@ -76,7 +76,7 @@ PW : 6400
 기능적 요구사항(검증)
 ![image](https://user-images.githubusercontent.com/28293389/81842650-51940480-9587-11ea-8f63-8f04c4a4dce6.png)
 
-1. Delivery에서 수락 되어 제작 된 상품과 가격을 수집하고 동시에 매출액 합계를 본사 시스템으로 전송 된다.
+1. Delivery에서 수락하여 반영되는 매출에 대해 수량과 가격을 수집하고 동시에 매출액 합계를 본사 시스템으로 전송 된다.
 
  비기능적 요구사항(검증)
 1. 트랜잭션
@@ -93,7 +93,7 @@ PW : 6400
 
 ## 헥사고날 아키텍처 다이어그램 도출
     
-![image](https://user-images.githubusercontent.com/28293389/81883964-917fd980-95d1-11ea-9b7e-60e2cf5fc82b.png)
+![image](https://user-images.githubusercontent.com/28293389/81890827-d6ac0780-95e1-11ea-89ff-15842bb9c923.png)
 
 # 구현:
 
@@ -257,7 +257,7 @@ http gateway:8080/accountingStatisticses
     ]
 ```
 
-## 동기식 호출 과 Fallback 처리
+## 동기식 호출
 
 - 본사 시스템(Headquarters)은 외부 시스템으로 가정하였으므로 매출액을 전송할 때 REST POST 방식으로 전송하였다.
 
@@ -279,92 +279,68 @@ public void salesTransfer(@RequestBody SalesTransferred salesTransferred){
 }
 ```
 
-## 장애 격리
-```
-# Math.random() > 0.5 이면 결제 서비스가 정상 Response로 가정
-
-# 주문 후 결제가 자동으로 진행
-http POST customer:8080/orders product="IceAmericano" qty=1 price=2000    # Success
-http POST customer:8080/orders product="IceAmericano2" qty=1 price=2000   # Fail
-
-# 결제 결과 확인
-http customer:8080/orderStatuses/1   # Status="pay_success"
-http customer:8080/orderStatuses/2   # Status="pay_fail"
-```
-
-
 ## 비동기식 호출 / 시간적 디커플링 / 장애격리 / 최종 (Eventual) 일관성 테스트
 
-
-결제가 이루어진 후에 상점시스템으로 이를 알려주는 행위는 동기식이 아니라 비 동기식으로 처리하여 상점 시스템의 처리를 위하여 결제주문이 블로킹 되지 않아도록 처리한다.
+결제가 이루어진 후에 Account 시스템으로 이를 알려주는 행위는 동기식이 아니라 비 동기식으로 처리하여 Account 시스템의 처리를 위하여 Delivery 주문 승인이 블로킹 되지 않도록 처리한다.
  
-- 이를 위하여 결제 승인이 되었다는 도메인 이벤트를 카프카로 송출한다 (Publish)
+- 이를 위하여 주문 승인이 되었다는 도메인 이벤트를 카프카로 송출한다 (Publish)
  
 ```
-PaymentCompleted paymentCompleted = new PaymentCompleted();
-BeanUtils.copyProperties(this, paymentCompleted);
-paymentCompleted.publish();
+if ("receive".equals(this.getStatus())) {
+    OrderReceived orderReceived = new OrderReceived();
+    BeanUtils.copyProperties(this, orderReceived);
+    orderReceived.publishAfterCommit();
+}
 ```
-- 상점 서비스에서는 결제승인 이벤트에 대해서 이를 수신하여 자신의 정책을 처리하도록 PolicyHandler 를 구현한다:
+- Account 서비스에서는 주문 승인 이벤트에 대해서 이를 수신하여 자신의 정책을 처리하도록 PolicyHandler 를 구현한다:
 
 ```
 @StreamListener(KafkaProcessor.INPUT)
-public void wheneverPaymentCompleted_OrderFromOrder(@Payload PaymentCompleted paymentCompleted){
+public void wheneverPaymentCompleted_SalesAdd(@Payload OrderReceived orderReceived){
 
-    if(paymentCompleted.isMe()){
+    if(orderReceived.isMe()){
+        System.out.println("##### listener SalesAdd : " + orderReceived.toJson());
 
-        Delivery delivery = new Delivery();
-        delivery.setOrderId(paymentCompleted.getOrderId());
-        delivery.setProduct(paymentCompleted.getProduct());
-        delivery.setQty(paymentCompleted.getQty());
-        delivery.setStatus("order_get");
+        String yearMonth = orderReceived.getTimestamp().substring(0, 8);
 
-        deliveryRepository.save(delivery);
-    }
-}
-```
-실제 구현 시, 점주는 Delivery UI를 통해 주문에 대한 수락/거절을 한다. (Delivery에 대해 PUT)
-  
-```
-@PostUpdate
-public void onPostUpdate(){
-    if ("receive".equals(this.getStatus())) {
-        OrderReceived orderReceived = new OrderReceived();
-        BeanUtils.copyProperties(this, orderReceived);
-        orderReceived.publishAfterCommit();
-    }
-
-    if ("reject".equals(this.getStatus())) {
-        OrderRejected orderRejected = new OrderRejected();
-        BeanUtils.copyProperties(this, orderRejected);
-        orderRejected.publishAfterCommit();
+        Accounting accounting;
+        if (accountingRepository.findById(yearMonth).isPresent())
+        {
+            accounting = accountingRepository.findById(yearMonth).get();
+            accounting.setOrderCount(accounting.getOrderCount() + 1);
+            accounting.setSalesSum(accounting.getSalesSum() + orderReceived.getPrice());
+            accounting.setSalesQty(accounting.getSalesQty() + orderReceived.getQty());
+            accountingRepository.save(accounting);
+        } else {
+            accounting = new Accounting();
+            accounting.setYearmonth(yearMonth);
+            accounting.setOrderCount((double) 1);
+            accounting.setSalesSum((double) orderReceived.getPrice());
+            accounting.setSalesQty((double) orderReceived.getQty());
+            accountingRepository.save(accounting);
+        }
     }
 }
 ```
 
-상점 시스템은 주문/결제와 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 상점시스템이 유지보수로 인해 잠시 내려간 상태라도 주문을 받는데 문제가 없다:
+
+Account 시스템은 주문 승인과 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 상점시스템이 유지보수로 인해 잠시 내려간 상태라도 주문을 받는데 문제가 없다:
 ```
 # 테스트 편의성을 위해 Local에서 진행
-# 상점 서비스 (store) 를 잠시 내려놓음 (ctrl+c)
+# 계정 서비스 (account) 를 잠시 내려놓음 (ctrl+c)
 
 #주문처리
 http POST localhost:8081/orders product="IceAmericano" qty=1 price=2000 
 
-#주문상태 확인
-http localhost:8081/orderStatuses/1     # 주문 상태 : pay_success
+#주문상태 승인
+http PUT localhost:8084/deliveries/1 status="receive" product="IceAmericano" qty=1 price=2000
 
-#상점 서비스 기동
-cd delivery
+#Account 서비스 기동
+cd account
 mvn spring-boot:run
 
 #상점에서 주문 확인
-http localhost:8084/deliveries/1        # 주문 상태 : order_get
-
-#상점 주인의 수락/거절 진행
-http PUT localhost:8084/deliveries/1 status="receive"
-
-#주문상태 확인
-http localhost:8081/orderStatuses/1     # 주문 상태 : order_received
+http localhost:8086/accounting
 ```
 
 
@@ -525,6 +501,15 @@ http http://delivery:8080/deliveries
 - 주문 내역이 취소되면 결제가 환불 된다.
 - 매장에서 커피가 제작 되면 고객이 주문 건을 픽업한다.
 - 주문 진행 상태가 바뀔 때 마다 SMS로 알림을 보낸다.
+
+- 계정에서 오늘의 매출을 확인할 수 있다.
+```
+http http://account:8080/accountings
+```
+- 계정 View 에서 CQRS로 구현 된 내용을 확인할 수 있다.
+```
+http http://account:8080/accountingStatisticses
+```
 
 ## 참고 명령어
 - httpie pod 접속
